@@ -10,7 +10,12 @@ class MinesweeperSpace:
             self.flag, self.cleared, self.has_mine, self.value)
 
     def __repr__(self):
-        return 'X' if not self.cleared else str(self.has_mine or self.value)
+        if self.flag:
+            return 'F'
+        elif self.cleared:
+            return str(self.has_mine or self.value or ' ')
+        else:
+            return 'X'
 
     def toggle_flag(self):
         self.flag = not self.flag
@@ -66,14 +71,14 @@ class MinesweeperBoard:
 
     def get_valid_space(self, row, col):
         if row < 0 or col < 0:
-            return False
+            return
         try:
             space = self.grid[row][col]
         except IndexError:
-            return False
+            return
         return space
 
-    def choose_space(self, row, col):
+    def choose_space_to_clear(self, row, col):
         space = self.get_valid_space(row, col)
         if not space:
             raise ValueError
@@ -98,10 +103,28 @@ class MinesweeperBoard:
             for j in [0, 1, -1]:
                 self.clear_area(row + i, col + j, value)
 
+    def choose_space_to_flag(self, row, col):
+        space = self.get_valid_space(row, col)
+        if not space:
+            raise ValueError
+        else:
+            space.toggle_flag()
+
+    def check_if_finished(self):
+        for i in xrange(len(self.grid)):
+            for j in xrange(len(self.grid[0])):
+                space = self.grid[i][j]
+                if space.flag and not space.has_mine:
+                    return False
+                elif space.has_mine and not space.flag:
+                    return False
+        return True
+
     def draw_board(self):
         os.system('cls' if os.name == 'nt' else 'clear')
         for i, line in enumerate(self.grid):
-            print '{} {}'.format(str(i).zfill(2), line)
+            print '{} {} {}'.format(str(i).zfill(2), line, str(i).zfill(2))
+
 
 class MinesweeperGame:
     LEVEL_SETTINGS = {'Hard': (40, 40, 100), 'Medium': (30, 30, 30), 'Easy': (20, 20, 5)}
@@ -123,17 +146,36 @@ class MinesweeperGame:
         question = 'What level would you like to play at-- Easy (E), Medium (M), or Hard (H)?  '
         level = self.get_user_response(question, level_response_options.keys())
         self.level = level_response_options.get(level)
-        print 'You have chosen {}'.format(level)
+
+    def prompt_for_action(self):
+        action_options = {'F': 'Flag', 'Flag': 'Flag', 'C': 'Clear', 'Clear': 'Clear'}
+        question = 'What woud you like to do?  Flag (F) or Clear (C)?  '
+        action = self.get_user_response(question, action_options.keys())
+        return action_options.get(action)
 
     def prompt_for_space_choice(self):
         question = 'What space would you like to explore-- row(int), col(int)?  '
         raw_output = raw_input(question)
         try:
             row, col = [int(d) for d in raw_output.split(', ')]
-            self.board.choose_space(row, col)
+            self.board.grid[row][col]
         except Exception as e:
             print e
             self.prompt_for_space_choice()
+        return (row, col)
+
+    def prompt_for_move(self):
+        row, col = self.prompt_for_space_choice()
+        action = self.prompt_for_action()
+        if action == 'Flag':
+            self.board.choose_space_to_flag(row, col)
+        elif action == 'Clear':
+            self.board.choose_space_to_clear(row, col)
+
+    def check_if_finished(self):
+        if game.board.check_if_finished():
+            return True
+        return False
 
     def create_board(self):
         self.board = MinesweeperBoard(*self.LEVEL_SETTINGS.get(self.level))
@@ -143,6 +185,10 @@ game = MinesweeperGame()
 game.prompt_for_level()
 game.create_board()
 game.board.draw_board()
-while True:
-    game.prompt_for_space_choice()
+finished = False
+while not finished:
+    game.prompt_for_move()
     game.board.draw_board()
+    finished = game.board.check_if_finished()
+    if finished:
+        print 'Hooray! You won!'
